@@ -1,6 +1,6 @@
 ---
 title: "p8105_hw2_dx2262"
-output: html_document
+output: github_document
 ---
 
 ```{r}
@@ -72,26 +72,70 @@ The total number of cigarette butts collected by Gwynns in June of 2022 is `r GF
 
 ## Problem 3
 
+Load datasets
 
+```{r}
+zip_codes_df <- 
+  read.csv("data/Zip Codes.csv", na = c("NA", ".", "")) %>% 
+  janitor::clean_names()
+```
 
+```{r}
+housing_df <- 
+  read.csv("data/Zip_zori_uc_sfrcondomfr_sm_month_NYC.csv", na = c("NA", ".", "")) %>% 
+  janitor::clean_names() %>% 
+  pivot_longer(
+    cols = x2015_01_31:x2024_08_31,
+    names_to = "date",
+    values_to = "price",
+    names_prefix = "x"
+  ) %>% 
+  drop_na() %>% 
+  rename(
+    zip_code = region_name
+  )
+```
 
+Combine datasets
 
+```{r}
+housing_by_zip_df <- 
+  left_join(housing_df, zip_codes_df, by = "zip_code") %>% 
+  relocate(zip_code, size_rank, date, price, everything())
+```
 
+The total number of observations is 10677.
 
-
-
-
-
-
-
-
-
-Create a single, well-organized dataset with all the information contained in these data files. To that end: import, clean, tidy, and otherwise wrangle each of these datasets; check for completeness and correctness across datasets (e.g. by viewing individual datasets and monitoring warning messages); merge to create a single, final dataset; and organize this so that variables and observations are in meaningful orders.
-
-Briefly describe the resulting tidy dataset. How many total observations exist? How many unique ZIP codes are included, and how many unique neighborhoods?
+There are `r housing_by_zip_df %>% pull(zip_code) %>% n_distinct()` unique ZIP codes, and 
+`r housing_by_zip_df %>% pull(neighborhood) %>% n_distinct()` unique neighborhoods.
 
 Which ZIP codes appear in the ZIP code dataset but not in the Zillow Rental Price dataset? Using a few illustrative examples discuss why these ZIP codes might be excluded from the Zillow dataset.
 
-Rental prices fluctuated dramatically during the COVID-19 pandemic. For all available ZIP codes, compare rental prices in January 2021 to prices in January 2020. Make a table that shows the 10 ZIP codes (along with the borough and neighborhood) with largest drop in price from January 2020 to 2021. Comment.
+```{r}
+missing_zip <- 
+  anti_join(zip_codes_df, housing_df, by = "zip_code") %>% 
+  distinct(zip_code) %>% 
+  pull(zip_code)
+
+missing_zip
+```
+
+These zip codes might denotes sparsely populated or remote areas, as Zillow’s data is mainly based on active rental markets and available listings. If a ZIP code has very few or no rental properties, data may be missing. The fact that these ZIP codes are all associated with neighborhoods Northest Bronx, Southern Brooklyn, etc. further corroborates this explanation.
+
+```{r}
+jan_prices <- housing_by_zip_df %>%
+  filter(substr(date, 1, 7) %in% c("2020_01", "2021_01")) %>%
+  select(zip_code, county, neighborhood, date, price) %>% 
+  pivot_wider(
+    names_from = date,
+    values_from = price
+  ) %>% 
+  mutate(price_drop = `2020_01_31` - `2021_01_31`) %>% 
+  knitr::kable()
+jan_prices
+```
+
+Most ZIP codes experienced a significant drop, with the largest decrease exceeding nine hundred dollars, occurring in Lower Manhattan. However, since its original price was also high, the percentage decrease is comparable to other areas.
+
 
 
